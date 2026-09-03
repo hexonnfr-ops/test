@@ -1,10 +1,10 @@
 name: Import verified OpenFront baseline
 
 on:
+  workflow_dispatch:
   push:
     paths:
       - BOOTSTRAP_OPENFRONT
-  workflow_dispatch:
 
 permissions:
   contents: write
@@ -28,33 +28,62 @@ jobs:
         run: |
           set -euo pipefail
           UPSTREAM_COMMIT="61789260bbb3bd2e1a0d7e42b4e1f0ceaf61ffe1"
-          if [[ -f .territory-chaos-imported ]]; then
-            echo "Baseline already imported."
-            exit 0
-          fi
-
           workdir="$(mktemp -d)"
           git clone --no-tags https://github.com/openfrontio/OpenFrontIO.git "$workdir/upstream"
           git -C "$workdir/upstream" checkout "$UPSTREAM_COMMIT"
 
-          # Import code + redistributable/open assets. Proprietary OpenFront assets
-          # are intentionally excluded from this independent fork.
+          # Copy the verified upstream baseline while preserving the Territory
+          # Chaos overlay that was authored independently in this repository.
+          # OpenFront proprietary assets are deliberately never imported.
           rsync -a --delete \
             --exclude='.git/' \
             --exclude='/proprietary/' \
             --exclude='/.github/workflows/import-openfront.yml' \
             --exclude='/BOOTSTRAP_OPENFRONT' \
+            --exclude='/IMPORT_NOTE.md' \
+            --exclude='/README.md' \
+            --exclude='/CREDITS.md' \
+            --exclude='/IMPLEMENTATION_PLAN.md' \
+            --exclude='/DEPLOYMENT.md' \
+            --exclude='/.env.example' \
+            --exclude='/src/chaos/' \
+            --exclude='/src/client/chaos/' \
+            --exclude='/src/server/chaos/' \
+            --exclude='/tests/chaos/' \
+            --exclude='/scripts/applyTerritoryChaosOverlay.mjs' \
             "$workdir/upstream/" ./
 
           rm -rf proprietary
           printf '%s\n' "$UPSTREAM_COMMIT" > .territory-chaos-imported
 
+      - name: Apply Territory Chaos integration seams
+        run: node scripts/applyTerritoryChaosOverlay.mjs
+
+      - name: Refresh dependency lock safely
+        run: npm install --package-lock-only --ignore-scripts
+
+      - name: Install pinned dependencies
+        run: npm ci --ignore-scripts
+
+      - name: Type-check
+        run: npx tsc --noEmit
+
+      - name: Run Territory Chaos tests
+        run: npx vitest run tests/chaos
+
+      - name: Lint Territory Chaos modules
+        run: npx eslint src/chaos src/client/chaos src/server/chaos tests/chaos
+
+      - name: Commit imported baseline + validated overlay
+        shell: bash
+        run: |
+          set -euo pipefail
           git config user.name "territory-chaos-bot"
           git config user.email "territory-chaos-bot@users.noreply.github.com"
           git add -A
           if git diff --cached --quiet; then
-            echo "Nothing to import."
+            echo "Nothing changed."
             exit 0
           fi
-          git commit -m "chore: import verified OpenFront baseline without proprietary assets"
+          git commit -m "chore: import verified OpenFront baseline and apply Territory Chaos overlay"
           git push origin HEAD:${GITHUB_REF_NAME}
