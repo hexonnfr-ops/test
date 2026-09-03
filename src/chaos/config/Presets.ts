@@ -15,7 +15,25 @@ export type BuiltInPresetId =
   | "king-gets-bullied"
   | "total-chaos";
 
-function mergePreset(seed: string, patch: Partial<GameConfigV1>): GameConfigV1 {
+type ConfigGroupKey =
+  | "general"
+  | "economy"
+  | "expansion"
+  | "combat"
+  | "alliances"
+  | "naval"
+  | "buildings"
+  | "victory"
+  | "chaos"
+  | "events"
+  | "visuals"
+  | "social";
+
+type GameConfigPatch = Omit<Partial<GameConfigV1>, ConfigGroupKey> & {
+  [K in ConfigGroupKey]?: Partial<GameConfigV1[K]>;
+};
+
+function mergePreset(seed: string, patch: GameConfigPatch): GameConfigV1 {
   const base = classicGameConfigV1(seed);
   return GameConfigV1Schema.parse({
     ...base,
