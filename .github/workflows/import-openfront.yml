@@ -74,6 +74,24 @@ jobs:
       - name: Build real client
         run: npm run build-dev
 
+      - name: Package downloadable OpenFront Ultra repository
+        shell: bash
+        run: |
+          set -euo pipefail
+          rm -f /tmp/OpenFront-Ultra-Remaster.zip
+          zip -q -r /tmp/OpenFront-Ultra-Remaster.zip . \
+            -x '.git/*' 'node_modules/*' 'proprietary/*'
+          ls -lh /tmp/OpenFront-Ultra-Remaster.zip
+
+      - name: Upload OpenFront Ultra ZIP
+        uses: actions/upload-artifact@v4
+        with:
+          name: OpenFront-Ultra-Remaster
+          path: /tmp/OpenFront-Ultra-Remaster.zip
+          compression-level: 0
+          retention-days: 7
+          if-no-files-found: error
+
       - name: Commit imported OpenFront + Ultra remaster foundation
         shell: bash
         run: |
