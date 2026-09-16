@@ -1,16 +1,20 @@
-name: Import verified OpenFront baseline
+name: Import OpenFront Ultra baseline
 
 on:
   workflow_dispatch:
   push:
     paths:
       - BOOTSTRAP_OPENFRONT
+      - .github/workflows/import-openfront.yml
+      - scripts/applyOpenFrontUltraOverlay.mjs
+      - src/client/ultra/**
+      - tests/ultra/**
 
 permissions:
   contents: write
 
 concurrency:
-  group: import-openfront-baseline
+  group: openfront-ultra-${{ github.ref }}
   cancel-in-progress: false
 
 jobs:
@@ -23,43 +27,36 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Import verified upstream commit
+      - name: Import verified OpenFront upstream
         shell: bash
         run: |
           set -euo pipefail
-          UPSTREAM_COMMIT="61789260bbb3bd2e1a0d7e42b4e1f0ceaf61ffe1"
+          UPSTREAM_COMMIT="dc8f3b435cac11582088ce0fa3612444ff627485"
           workdir="$(mktemp -d)"
           git clone --no-tags https://github.com/openfrontio/OpenFrontIO.git "$workdir/upstream"
           git -C "$workdir/upstream" checkout "$UPSTREAM_COMMIT"
 
-          # Copy the verified upstream baseline while preserving the Territory
-          # Chaos overlay that was authored independently in this repository.
-          # OpenFront proprietary assets are deliberately never imported.
+          # The branch becomes a real OpenFront source tree. Only the remaster
+          # overlay/bootstrap files survive the sync. Proprietary upstream
+          # assets are deliberately not redistributed.
           rsync -a --delete \
             --exclude='.git/' \
             --exclude='/proprietary/' \
             --exclude='/.github/workflows/import-openfront.yml' \
             --exclude='/BOOTSTRAP_OPENFRONT' \
-            --exclude='/IMPORT_NOTE.md' \
-            --exclude='/README.md' \
-            --exclude='/CREDITS.md' \
-            --exclude='/IMPLEMENTATION_PLAN.md' \
-            --exclude='/DEPLOYMENT.md' \
-            --exclude='/.env.example' \
-            --exclude='/src/chaos/' \
-            --exclude='/src/client/chaos/' \
-            --exclude='/src/server/chaos/' \
-            --exclude='/tests/chaos/' \
-            --exclude='/scripts/applyTerritoryChaosOverlay.mjs' \
+            --exclude='/ULTRA_PROGRESS.md' \
+            --exclude='/src/client/ultra/' \
+            --exclude='/tests/ultra/' \
+            --exclude='/scripts/applyOpenFrontUltraOverlay.mjs' \
             "$workdir/upstream/" ./
 
           rm -rf proprietary
-          printf '%s\n' "$UPSTREAM_COMMIT" > .territory-chaos-imported
+          printf '%s\n' "$UPSTREAM_COMMIT" > .openfront-ultra-upstream
 
-      - name: Apply Territory Chaos integration seams
-        run: node scripts/applyTerritoryChaosOverlay.mjs
+      - name: Apply OpenFront Ultra integration
+        run: node scripts/applyOpenFrontUltraOverlay.mjs
 
-      - name: Refresh dependency lock safely
+      - name: Refresh dependency lock
         run: npm install --package-lock-only --ignore-scripts
 
       - name: Install pinned dependencies
@@ -68,22 +65,25 @@ jobs:
       - name: Type-check
         run: npx tsc --noEmit
 
-      - name: Run Territory Chaos tests
-        run: npx vitest run tests/chaos
+      - name: Run Ultra tests
+        run: npx vitest run tests/ultra
 
-      - name: Lint Territory Chaos modules
-        run: npx eslint src/chaos src/client/chaos src/server/chaos tests/chaos
+      - name: Lint Ultra modules
+        run: npx eslint src/client/ultra tests/ultra
 
-      - name: Commit imported baseline + validated overlay
+      - name: Build real client
+        run: npm run build-dev
+
+      - name: Commit imported OpenFront + Ultra remaster foundation
         shell: bash
         run: |
           set -euo pipefail
-          git config user.name "territory-chaos-bot"
-          git config user.email "territory-chaos-bot@users.noreply.github.com"
+          git config user.name "openfront-ultra-bot"
+          git config user.email "openfront-ultra-bot@users.noreply.github.com"
           git add -A
           if git diff --cached --quiet; then
             echo "Nothing changed."
             exit 0
           fi
-          git commit -m "chore: import verified OpenFront baseline and apply Territory Chaos overlay"
+          git commit -m "feat(ultra): import OpenFront and wire remaster foundation"
           git push origin HEAD:${GITHUB_REF_NAME}
