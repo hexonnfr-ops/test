@@ -38,20 +38,9 @@ jobs:
           $needle = '#include "imgui_impl_win32.h" // declare ImGui_ImplWin32_WndProcHandler, voir CMakeLists.txt'
           $replacement = $needle + "`r`nextern IMGUI_IMPL_API LRESULT ImGui_ImplWin32_WndProcHandler(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam);"
           $s = $s.Replace($needle, $replacement)
-          $oldNc = @'
-        self = reinterpret_cast<OverlayWindow*>(cs->lpCreateParams);
-        SetWindowLongPtrW(hwnd, GWLP_USERDATA, reinterpret_cast<LONG_PTR>(self));
-'@
-          $newNc = @'
-        self = reinterpret_cast<OverlayWindow*>(cs->lpCreateParams);
-        SetWindowLongPtrW(hwnd, GWLP_USERDATA, reinterpret_cast<LONG_PTR>(self));
-        if (self)
-        {
-            self->m_hwnd = hwnd;
-        }
-        return TRUE;
-'@
-          $s = $s.Replace($oldNc, $newNc)
+          $pattern = 'self = reinterpret_cast<OverlayWindow\*>\(cs->lpCreateParams\);\r?\n\s*SetWindowLongPtrW\(hwnd, GWLP_USERDATA, reinterpret_cast<LONG_PTR>\(self\)\);'
+          $replacementNc = "self = reinterpret_cast<OverlayWindow*>(cs->lpCreateParams);`r`n        SetWindowLongPtrW(hwnd, GWLP_USERDATA, reinterpret_cast<LONG_PTR>(self));`r`n        if (self)`r`n        {`r`n            self->m_hwnd = hwnd;`r`n        }`r`n        return TRUE;"
+          $s = [regex]::Replace($s, $pattern, $replacementNc)
           Set-Content -Path $overlay -Value $s -Encoding utf8
 
           $renderer = "work/fpsboost/src/Renderer.cpp"
