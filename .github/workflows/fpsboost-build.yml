@@ -54,7 +54,7 @@ jobs:
 
           $cmake = "work/fpsboost/CMakeLists.txt"
           $s = Get-Content $cmake -Raw
-          $s = $s.Replace('target_sources(FPSBoostOverlay PRIVATE cmake/app.manifest)', 'target_sources(FPSBoostOverlay PRIVATE cmake/app.manifest)' + "`r`n    target_link_options(FPSBoostOverlay PRIVATE `"/MANIFESTUAC:level=''requireAdministrator'' uiAccess=''false''`")")
+          $s = $s.Replace('target_sources(FPSBoostOverlay PRIVATE cmake/app.manifest)', '# app.manifest embedded after linking by the CI build')
           Set-Content -Path $cmake -Value $s -Encoding utf8
 
       - name: Configure
@@ -64,6 +64,14 @@ jobs:
       - name: Build Release
         shell: pwsh
         run: cmake --build work/fpsboost/build --config Release --parallel
+
+      - name: Embed administrator manifest
+        shell: pwsh
+        run: |
+          $mt = Get-ChildItem "${env:ProgramFiles(x86)}\Windows Kits\10\bin\*\x64\mt.exe" | Sort-Object FullName | Select-Object -Last 1
+          if (-not $mt) { throw "mt.exe not found" }
+          & $mt.FullName -nologo -manifest "work/fpsboost/cmake/app.manifest" "-outputresource:work/fpsboost/build/Release/FPSBoostOverlay.exe;#1"
+          if ($LASTEXITCODE -ne 0) { throw "Manifest embedding failed" }
 
       - name: Package
         shell: pwsh
