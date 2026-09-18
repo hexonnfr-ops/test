@@ -30,6 +30,29 @@ jobs:
           Expand-Archive -Path "imgui.zip" -DestinationPath "imgui_tmp" -Force
           Move-Item "imgui_tmp/imgui-1.90.9" "work/fpsboost/third_party/imgui"
 
+      - name: Apply compile fixes
+        shell: pwsh
+        run: |
+          $overlay = "work/fpsboost/src/OverlayWindow.cpp"
+          $s = Get-Content $overlay -Raw
+          $needle = '#include "imgui_impl_win32.h" // declare ImGui_ImplWin32_WndProcHandler, voir CMakeLists.txt'
+          $replacement = $needle + "`r`nextern IMGUI_IMPL_API LRESULT ImGui_ImplWin32_WndProcHandler(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam);"
+          $s = $s.Replace($needle, $replacement)
+          Set-Content -Path $overlay -Value $s -Encoding utf8
+
+          $renderer = "work/fpsboost/src/Renderer.cpp"
+          $s = Get-Content $renderer -Raw
+          $s = $s.Replace('    hr = factory->CreateSwapChainForComposition(', '    ComPtr<IDXGISwapChain1> swapChain1;' + "`r`n`r`n" + '    hr = factory->CreateSwapChainForComposition(')
+          $s = $s.Replace('        &m_swapChain' + "`r`n" + '    );', '        &swapChain1' + "`r`n" + '    );')
+          $s = $s.Replace('            &m_swapChain' + "`r`n" + '        );', '            &swapChain1' + "`r`n" + '        );')
+          $s = $s.Replace('    return CreateRenderTarget();', '    m_swapChain = swapChain1;' + "`r`n`r`n" + '    return CreateRenderTarget();')
+          Set-Content -Path $renderer -Value $s -Encoding utf8
+
+          $monitor = "work/fpsboost/src/SystemMonitor.cpp"
+          $s = Get-Content $monitor -Raw
+          $s = $s.Replace('WBEM_FLAG_RETURN_IMMEDIATE', 'WBEM_FLAG_RETURN_IMMEDIATELY')
+          Set-Content -Path $monitor -Value $s -Encoding utf8
+
       - name: Configure
         shell: pwsh
         run: cmake -S work/fpsboost -B work/fpsboost/build -G "Visual Studio 17 2022" -A x64
