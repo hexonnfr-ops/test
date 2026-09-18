@@ -43,9 +43,8 @@ jobs:
           $renderer = "work/fpsboost/src/Renderer.cpp"
           $s = Get-Content $renderer -Raw
           $s = $s.Replace('    hr = factory->CreateSwapChainForComposition(', '    ComPtr<IDXGISwapChain1> swapChain1;' + "`r`n`r`n" + '    hr = factory->CreateSwapChainForComposition(')
-          $s = $s.Replace('        &m_swapChain' + "`r`n" + '    );', '        &swapChain1' + "`r`n" + '    );')
-          $s = $s.Replace('            &m_swapChain' + "`r`n" + '        );', '            &swapChain1' + "`r`n" + '        );')
-          $s = $s.Replace('    return CreateRenderTarget();', '    m_swapChain = swapChain1;' + "`r`n`r`n" + '    return CreateRenderTarget();')
+          $s = $s.Replace('&m_swapChain', '&swapChain1')
+          if (-not $s.Contains('m_swapChain = swapChain1;')) { $s = $s.Replace('    return CreateRenderTarget();', '    m_swapChain = swapChain1;' + "`r`n`r`n" + '    return CreateRenderTarget();') }
           Set-Content -Path $renderer -Value $s -Encoding utf8
 
           $monitor = "work/fpsboost/src/SystemMonitor.cpp"
