@@ -52,6 +52,11 @@ jobs:
           $s = $s.Replace('WBEM_FLAG_RETURN_IMMEDIATE', 'WBEM_FLAG_RETURN_IMMEDIATELY')
           Set-Content -Path $monitor -Value $s -Encoding utf8
 
+          $cmake = "work/fpsboost/CMakeLists.txt"
+          $s = Get-Content $cmake -Raw
+          $s = $s.Replace('target_sources(FPSBoostOverlay PRIVATE cmake/app.manifest)', 'target_sources(FPSBoostOverlay PRIVATE cmake/app.manifest)' + "`r`n    target_link_options(FPSBoostOverlay PRIVATE `"/MANIFESTUAC:level=''requireAdministrator'' uiAccess=''false''`")")
+          Set-Content -Path $cmake -Value $s -Encoding utf8
+
       - name: Configure
         shell: pwsh
         run: cmake -S work/fpsboost -B work/fpsboost/build -G "Visual Studio 17 2022" -A x64
