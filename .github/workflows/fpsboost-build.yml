@@ -1,0 +1,55 @@
+name: Build FPSBoostOverlay
+
+on:
+  push:
+    branches:
+      - fpsboost-build-20260918
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: windows-2022
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Reconstruct source archive
+        shell: pwsh
+        run: |
+          $parts = Get-ChildItem "payload/part_*.txt" | Sort-Object Name
+          $b64 = ($parts | ForEach-Object { Get-Content $_.FullName -Raw }) -join ""
+          [IO.File]::WriteAllBytes("FPSBoostOverlay.zip", [Convert]::FromBase64String($b64))
+          Expand-Archive -Path "FPSBoostOverlay.zip" -DestinationPath "work" -Force
+          if (-not (Test-Path "work/fpsboost/CMakeLists.txt")) { throw "Source archive reconstruction failed." }
+
+      - name: Download Dear ImGui v1.90.9
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force "work/fpsboost/third_party" | Out-Null
+          Invoke-WebRequest "https://github.com/ocornut/imgui/archive/refs/tags/v1.90.9.zip" -OutFile "imgui.zip"
+          Expand-Archive -Path "imgui.zip" -DestinationPath "imgui_tmp" -Force
+          Move-Item "imgui_tmp/imgui-1.90.9" "work/fpsboost/third_party/imgui"
+
+      - name: Configure
+        shell: pwsh
+        run: cmake -S work/fpsboost -B work/fpsboost/build -G "Visual Studio 17 2022" -A x64
+
+      - name: Build Release
+        shell: pwsh
+        run: cmake --build work/fpsboost/build --config Release --parallel
+
+      - name: Package
+        shell: pwsh
+        run: |
+          $out = "dist"
+          New-Item -ItemType Directory -Force $out | Out-Null
+          Copy-Item "work/fpsboost/build/Release/FPSBoostOverlay.exe" "$out/FPSBoostOverlay.exe"
+          Copy-Item "work/fpsboost/build/Release/shaders" "$out/shaders" -Recurse
+          Get-FileHash "$out/FPSBoostOverlay.exe" -Algorithm SHA256 | Format-List
+
+      - name: Upload executable
+        uses: actions/upload-artifact@v4
+        with:
+          name: FPSBoostOverlay-Windows-x64
+          path: dist/
+          if-no-files-found: error
